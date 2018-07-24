@@ -1,18 +1,18 @@
-death.attack.helmet=%1$s в следующий раз, мне стоит надеть шлем.
+death.attack.helmet=%1$s в следующий раз мне стоит надеть шлем.
 
-d3.minesafety.config.title=MineSafety Конфиг
+d3.minesafety.config.title=Конфигурация MineSafety
 
 d3.minesafety.config.yLevel=Y-Уровень
-d3.minesafety.config.yLevel.tooltip=Y уровень, на котором тебе стоит носить шлем.
+d3.minesafety.config.yLevel.tooltip=Y уровень(глубина), на котором вам нужно носить шлем.
 
 d3.minesafety.config.chance=Шанс
-d3.minesafety.config.chance.tooltip=Шанс, что ты повредишь этот тик в %
+d3.minesafety.config.chance.tooltip=Шанс, что вам будет нанесён урон в этот тик в процентах.
 
-d3.minesafety.config.timeout=Время Ожидания
-d3.minesafety.config.timeout.tooltip=Минимальное время в секундах, между 2-мя хитами из этого мода.
+d3.minesafety.config.timeout=Тайм-аут
+d3.minesafety.config.timeout.tooltip=Минимальное время в секундах между двумя ударами из этой модификации.
 
 d3.minesafety.config.message=Сообщение
-d3.minesafety.config.message.tooltip=Отображение внутриигрового сообщения, когда пользователь получает урон от шлема.
+d3.minesafety.config.message.tooltip=Отображение внутриигрового сообщения, когда пользователь получает урон без шлема.
 
-d3.minesafety.config.dimlist=Измерение Чёрного Списка
-item.depth_gauge.name=Глубинометр
+d3.minesafety.config.dimlist=Размер чёрного списка
+item.depth_gauge.name=Глубиномер
