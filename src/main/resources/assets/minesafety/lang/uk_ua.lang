@@ -1,0 +1,18 @@
+death.attack.helmet=%1$s в наступний раз мені краще надіти шолома.
+
+d3.minesafety.config.title=Конфігурація MineSafety
+
+d3.minesafety.config.yLevel=Y рівень
+d3.minesafety.config.yLevel.tooltip=Y рівень(глибина), на якому вам потрібно носити шолом.
+
+d3.minesafety.config.chance=Шанс
+d3.minesafety.config.chance.tooltip=Шанс, що вам буде завдано шкоди в цей тик у відсотках.
+
+d3.minesafety.config.timeout=Тайм-аут
+d3.minesafety.config.timeout.tooltip=Мінімальний час в секундах між двома ударами з цієї модифікації.
+
+d3.minesafety.config.message=Повідомлення
+d3.minesafety.config.message.tooltip=Відображення внутріігрового повідомлення, коли користувач отримує шкоди без шолома.
+
+d3.minesafety.config.dimlist=Розмір чорного списку
+item.depth_gauge.name=Глибиномер
