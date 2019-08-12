@@ -1,71 +1,66 @@
 package net.doubledoordev.minesafety;
 
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.block.model.ModelResourceLocation;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.inventory.EntityEquipmentSlot;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemArmor;
-import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.util.DamageSource;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.text.TextComponentString;
-import net.minecraftforge.client.event.ModelRegistryEvent;
-import net.minecraftforge.client.event.RenderGameOverlayEvent;
-import net.minecraftforge.client.model.ModelLoader;
-import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.common.config.Config;
-import net.minecraftforge.common.config.ConfigManager;
-import net.minecraftforge.event.RegistryEvent;
-import net.minecraftforge.fml.client.event.ConfigChangedEvent;
-import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.common.Mod.EventHandler;
-import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
-import net.minecraftforge.fml.common.gameevent.TickEvent;
-
 import java.util.ArrayList;
 import java.util.Random;
 
-@Mod(modid = MineSafety.MOD_ID, name = MineSafety.MOD_NAME, version = MineSafety.VERSION)
+import net.minecraft.client.Minecraft;
+import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.inventory.EquipmentSlotType;
+import net.minecraft.item.ArmorItem;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemGroup;
+import net.minecraft.item.ItemStack;
+import net.minecraft.nbt.CompoundNBT;
+import net.minecraft.util.DamageSource;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.text.TranslationTextComponent;
+import net.minecraftforge.client.event.RenderGameOverlayEvent;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.RegistryEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.ModLoadingContext;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.common.gameevent.TickEvent;
+import net.minecraftforge.fml.config.ModConfig;
+
+@Mod("minesafety")
+@Mod.EventBusSubscriber(bus = Mod.EventBusSubscriber.Bus.MOD)
 public class MineSafety
 {
-    public static final String MOD_NAME = "minesafety";
-    public static final String VERSION  = "1.4.0";
-    public static final String MOD_ID = "minesafety";
     private Random random = new Random();
-    private DamageSource damageSource = new DamageSource("helmet").setDifficultyScaled();
-    private ItemDepthGauge depthGauge = new ItemDepthGauge();
-    @EventHandler
-    public void preInit(FMLPreInitializationEvent event)
+    private static ItemDepthGauge depthGauge = new ItemDepthGauge(new Item.Properties().group(ItemGroup.TOOLS));
+
+    @SubscribeEvent
+    public static void onRegisterItem(final RegistryEvent.Register<Item> event)
     {
+        event.getRegistry().register(depthGauge.setRegistryName("depthgauge"));
+    }
+
+    private DamageSource UNSAFE_MINE = new DamageSource("mineSafetyUnsafeY").setDifficultyScaled();
+    private String NBTKey = "minesafetyCooldown";
+
+    public MineSafety()
+    {
+        MinecraftForge.EVENT_BUS.register(MineSafetyConfig.class);
+        ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, MineSafetyConfig.spec);
+
         MinecraftForge.EVENT_BUS.register(this);
-    }
-
-    @SubscribeEvent
-    public void registerItems(RegistryEvent.Register<Item> event)
-    {
-        event.getRegistry().register(depthGauge.setRegistryName("depthGauge").setUnlocalizedName("depth_gauge"));
-    }
-
-    @SubscribeEvent
-    public void registerResources(ModelRegistryEvent event)
-    {
-        ModelLoader.setCustomModelResourceLocation(depthGauge,0,new ModelResourceLocation(depthGauge.getRegistryName(),"inventory"));
     }
 
     @SubscribeEvent
     public void drawTextEvent(RenderGameOverlayEvent.Text event)
     {
-        Minecraft mc = Minecraft.getMinecraft();
+        Minecraft mc = Minecraft.getInstance();
         ArrayList<String> list = event.getLeft();
         int yPos = mc.player.getPosition().getY();
+        // loop over the player slots
         for(int i=0; i < 35; i++)
         {
+            // if we find a depth gauge
             if (mc.player.inventory.getStackInSlot(i).isItemEqual(new ItemStack(depthGauge)))
             {
-                if (yPos <= ModConfig.yLevel)
+                // render the pos, Colored if below the danger level.
+                if (yPos <= MineSafetyConfig.GENERAL.yLevel.get())
                 {
                     list.add("\u00A74Y=" + yPos);
                 }
@@ -80,65 +75,70 @@ public class MineSafety
     @SubscribeEvent
     public void playerTick(TickEvent.PlayerTickEvent event)
     {
-        if (event.phase == TickEvent.Phase.END) return;
-        EntityPlayer player = event.player;
-        NBTTagCompound data = player.getEntityData();
-        if (ModConfig.dims.length == 0)
+        // Event fires two times per side, need to filter this.
+        if (event.phase == TickEvent.Phase.END || event.side.isClient()) return;
+        // Now we see if we should even hit the chance to damage.
+        if (random.nextFloat() < MineSafetyConfig.GENERAL.chance.get()) return;
+
+        PlayerEntity player = event.player;
+        CompoundNBT data = player.getEntityData();
+        int coolDown = data.getInt(NBTKey);
+
+        // if the player has a helmet on we don't care. MUST BE REAL ARMOR!
+        if (player.getItemStackFromSlot(EquipmentSlotType.HEAD).getItem() instanceof ArmorItem) return;
+
+        // Does the play hold a timeout value?
+        if (!data.contains(NBTKey))
         {
-            if (data.hasKey(MOD_ID))
+            // If not, give them a new one with full time.
+            data.putInt(NBTKey, 20 * MineSafetyConfig.GENERAL.timeout.get());
+        }
+
+        // Is the player below the Y level, can't see they sky and the cooldown expired?
+        if (player.posY <= MineSafetyConfig.GENERAL.yLevel.get() &&
+                !player.getEntityWorld().canBlockSeeSky(new BlockPos(player.posX, player.posY, player.posZ)) &&
+                coolDown == 0)
+        {
+            // if we meet the above then we get into checking the blacklist.
+            if (!MineSafetyConfig.GENERAL.dimBlacklist.get().isEmpty())
             {
-                if (data.getInteger(MOD_ID) == 0) data.removeTag(MOD_ID);
-                else data.setInteger(MOD_ID, data.getInteger(MOD_ID) - 1);
+                // if the blacklist isn't empty loop over all of the entries.
+                for (int dim : MineSafetyConfig.GENERAL.dimBlacklist.get())
+                {
+                    // check the player dim against the blacklist entry
+                    if (player.world.dimension.getType().getId() != dim)
+                    {
+                        // if they don't match damage them.
+                        damagePlayerAndNotify(data, player);
+                    }
+                }
             }
             else
             {
-                if (player.posY >= ModConfig.yLevel) return;
-                if (player.getItemStackFromSlot(EntityEquipmentSlot.HEAD).getItem() instanceof ItemArmor) return;
-                if (player.getEntityWorld().canBlockSeeSky(new BlockPos(player.posX, player.posY, player.posZ)))
-                    return;
-                if (random.nextFloat() > ModConfig.chance) return;
-                if (player.attackEntityFrom(damageSource, 1.0f + 0.2f * random.nextFloat()))
-                {
-                    player.sendStatusMessage(new TextComponentString(ModConfig.message), false);
-                    data.setInteger(MOD_ID, 20 * ModConfig.timeout);
+                // if the blacklist is empty we don't care about any safe places, just give em a good whack.
+                damagePlayerAndNotify(data, player);
                 }
-            }
         }
         else
         {
-            for (int dim : ModConfig.dims)
-            {
-                if (player.world.provider.getDimension() != dim)
-                {
-                    if (data.hasKey(MOD_ID))
-                    {
-                        if (data.getInteger(MOD_ID) == 0) data.removeTag(MOD_ID);
-                        else data.setInteger(MOD_ID, data.getInteger(MOD_ID) - 1);
-                    }
-                    else
-                    {
-                        if (player.posY >= ModConfig.yLevel) return;
-                        if (player.getItemStackFromSlot(EntityEquipmentSlot.HEAD).getItem() instanceof ItemArmor)
-                            return;
-                        if (player.getEntityWorld().canBlockSeeSky(new BlockPos(player.posX, player.posY, player.posZ)))
-                            return;
-                        if (random.nextFloat() > ModConfig.chance) return;
-                        if (player.attackEntityFrom(damageSource, 1.0f + 0.2f * random.nextFloat()))
-                        {
-                            player.sendStatusMessage(new TextComponentString(ModConfig.message), false);
-                            data.setInteger(MOD_ID, 20 * ModConfig.timeout);
-                        }
-                    }
-                }
-            }
+            // if we fail the Y, Sky or coolDown we make sure that it's a sane value.
+            if (coolDown < 0)
+                // If this happens some cheeky bastard was messing with our data!
+                data.putInt(NBTKey, 0);
+            else
+                // otherwise we just take one off to work it down.
+                data.putInt(NBTKey, coolDown - 1);
         }
     }
 
-    @SubscribeEvent
-    public void onConfigChanged(ConfigChangedEvent.OnConfigChangedEvent event){
-        if (event.getModID().equals(MOD_ID))
+    private void damagePlayerAndNotify(CompoundNBT compoundNBT, PlayerEntity player)
+    {
+        // Damage is a magical beast that has some rules, We need to make sure we apply the damage!
+        if (player.attackEntityFrom(UNSAFE_MINE, 1.0f + 0.2f * random.nextFloat()))
         {
-            ConfigManager.sync(MOD_ID, Config.Type.INSTANCE);
+            // if the damage is applied then we send the message along with a handy timeout reset.
+            player.sendStatusMessage(new TranslationTextComponent(MineSafetyConfig.GENERAL.message.get()) {}, true);
+            compoundNBT.putInt(NBTKey, 20 * MineSafetyConfig.GENERAL.timeout.get());
         }
     }
 }
