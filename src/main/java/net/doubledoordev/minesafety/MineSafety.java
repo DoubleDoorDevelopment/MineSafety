@@ -17,10 +17,10 @@ import net.minecraft.util.text.TranslationTextComponent;
 import net.minecraftforge.client.event.RenderGameOverlayEvent;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.RegistryEvent;
+import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.common.gameevent.TickEvent;
 import net.minecraftforge.fml.config.ModConfig;
 
 @Mod("minesafety")
@@ -81,7 +81,7 @@ public class MineSafety
         if (random.nextFloat() < MineSafetyConfig.GENERAL.chance.get()) return;
 
         PlayerEntity player = event.player;
-        CompoundNBT data = player.getEntityData();
+        CompoundNBT data = player.getPersistentData();
         int coolDown = data.getInt(NBTKey);
 
         // if the player has a helmet on we don't care. MUST BE REAL ARMOR!
