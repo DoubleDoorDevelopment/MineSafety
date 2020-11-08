@@ -3,6 +3,9 @@ package net.doubledoordev.minesafety;
 import java.util.ArrayList;
 import java.util.Random;
 
+import org.apache.commons.lang3.tuple.Pair;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import net.minecraft.client.Minecraft;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.inventory.EquipmentSlotType;
@@ -19,25 +22,30 @@ import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.RegistryEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.ExtensionPoint;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.config.ModConfig;
+import net.minecraftforge.fml.network.FMLNetworkConstants;
 
 @Mod("minesafety")
 @Mod.EventBusSubscriber(bus = Mod.EventBusSubscriber.Bus.MOD)
 public class MineSafety
 {
-    private Random random = new Random();
-    private static ItemDepthGauge depthGauge = new ItemDepthGauge(new Item.Properties().group(ItemGroup.TOOLS));
+    private static final Logger LOGGER = LogManager.getLogger();
+    private static final ItemDepthGauge depthGauge = new ItemDepthGauge(new Item.Properties().group(ItemGroup.TOOLS));
 
     @SubscribeEvent
     public static void onRegisterItem(final RegistryEvent.Register<Item> event)
     {
-        event.getRegistry().register(depthGauge.setRegistryName("depthgauge"));
+        if (!MineSafetyConfig.GENERAL.serverSideOnly.get())
+            event.getRegistry().register(depthGauge.setRegistryName("depthgauge"));
     }
 
-    private DamageSource UNSAFE_MINE = new DamageSource("mineSafetyUnsafeY").setDifficultyScaled();
-    private String NBTKey = "minesafetyCooldown";
+    private final Random random = new Random();
+    private final DamageSource UNSAFE_MINE = new DamageSource("mineSafetyUnsafeY").setDifficultyScaled();
+    private final String NBTKey = "minesafetyCooldown";
+    int tickCounterToStopLogSpam = 100;
 
     public MineSafety()
     {
@@ -45,6 +53,11 @@ public class MineSafety
         ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, MineSafetyConfig.spec);
 
         MinecraftForge.EVENT_BUS.register(this);
+
+        if (MineSafetyConfig.GENERAL.serverSideOnly.get())
+        {
+            ModLoadingContext.get().registerExtensionPoint(ExtensionPoint.DISPLAYTEST, () -> Pair.of(() -> FMLNetworkConstants.IGNORESERVERONLY, (a, b) -> true));
+        }
     }
 
     @SubscribeEvent
@@ -52,7 +65,7 @@ public class MineSafety
     {
         Minecraft mc = Minecraft.getInstance();
         ArrayList<String> list = event.getLeft();
-        int yPos = mc.player.getPosition().getY();
+        int yPos = mc.player.func_233580_cy_().getY();
         // loop over the player slots
         for(int i=0; i < 35; i++)
         {
@@ -83,6 +96,7 @@ public class MineSafety
         PlayerEntity player = event.player;
         CompoundNBT data = player.getPersistentData();
         int coolDown = data.getInt(NBTKey);
+        String dimResourceLocation = player.world.func_234923_W_().func_240901_a_().toString();
 
         // if the player has a helmet on we don't care. MUST BE REAL ARMOR!
         if (player.getItemStackFromSlot(EquipmentSlotType.HEAD).getItem() instanceof ArmorItem) return;
@@ -94,30 +108,24 @@ public class MineSafety
             data.putInt(NBTKey, 20 * MineSafetyConfig.GENERAL.timeout.get());
         }
 
+        // This only exists to keep the log spam down.
+        if (MineSafetyConfig.GENERAL.debug.get() && tickCounterToStopLogSpam > 100)
+        {
+            LOGGER.info(player.getDisplayName() + " is in Dim: [" + dimResourceLocation + "] To disable set debug to false in the config. Copy paste the text inside the [] to the dimlist to effect/block this dim.");
+            tickCounterToStopLogSpam = 0;
+        }
+
         // Is the player below the Y level, can't see they sky and the cooldown expired?
-        if (player.posY <= MineSafetyConfig.GENERAL.yLevel.get() &&
-                !player.getEntityWorld().canBlockSeeSky(new BlockPos(player.posX, player.posY, player.posZ)) &&
+        if (player.getPosY() <= MineSafetyConfig.GENERAL.yLevel.get() &&
+                !player.getEntityWorld().canBlockSeeSky(new BlockPos(player.getPosX(), player.getPosY(), player.getPosZ())) &&
                 coolDown == 0)
         {
-            // if we meet the above then we get into checking the blacklist.
-            if (!MineSafetyConfig.GENERAL.dimBlacklist.get().isEmpty())
+            //check if the blacklist contains our current dim.
+            if (!MineSafetyConfig.GENERAL.dimBlacklist.get().contains(dimResourceLocation))
             {
-                // if the blacklist isn't empty loop over all of the entries.
-                for (int dim : MineSafetyConfig.GENERAL.dimBlacklist.get())
-                {
-                    // check the player dim against the blacklist entry
-                    if (player.world.dimension.getType().getId() != dim)
-                    {
-                        // if they don't match damage them.
-                        damagePlayerAndNotify(data, player);
-                    }
-                }
-            }
-            else
-            {
-                // if the blacklist is empty we don't care about any safe places, just give em a good whack.
+                //if not, damage them.
                 damagePlayerAndNotify(data, player);
-                }
+            }
         }
         else
         {

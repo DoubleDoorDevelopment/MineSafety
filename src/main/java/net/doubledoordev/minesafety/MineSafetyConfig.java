@@ -23,7 +23,7 @@ public class MineSafetyConfig
 
     public static class General
     {
-        public static List<? extends Integer> dimBlacklistList()
+        public static List<? extends String> dimBlacklistList()
         {
             return new ArrayList<>();
         }
@@ -31,8 +31,10 @@ public class MineSafetyConfig
         public IntValue yLevel;
         public IntValue timeout;
         public DoubleValue chance;
-        public ConfigValue<List<? extends Integer>> dimBlacklist;
+        public ConfigValue<List<? extends String>> dimBlacklist;
         public ConfigValue<String> message;
+        public ForgeConfigSpec.BooleanValue debug;
+        public ForgeConfigSpec.BooleanValue serverSideOnly;
 
         General(ForgeConfigSpec.Builder builder)
         {
@@ -57,12 +59,22 @@ public class MineSafetyConfig
             dimBlacklist = builder
                     .comment("Dimension damage BLACKLIST, MineSafety damage will be disabled in these dimensions only!")
                     .translation("minesafety.config.dimlist")
-                    .defineList("dimBlacklist", MineSafetyConfig.General.dimBlacklistList(), p -> p instanceof Integer);
+                    .defineList("dimBlacklist", MineSafetyConfig.General.dimBlacklistList(), p -> p instanceof String);
 
             message = builder
                     .comment("The message displayed in-game when user takes damage from no helmet.")
                     .translation("minesafety.config.message")
                     .define("message", "Ouch! Falling rocks... I should wear a helmet.");
+
+            debug = builder
+                    .comment("Enable Dim to console output for getting ID's.")
+                    .translation("minesafety.config.debug")
+                    .define("debug", false);
+
+            serverSideOnly = builder
+                    .comment("Make this mod server side only. Disables the depth gauge item and allows clients to join without the mod.")
+                    .translation("minesafety.config.serverSideOnly")
+                    .define("serverSideOnly", false);
 
         }
     }
