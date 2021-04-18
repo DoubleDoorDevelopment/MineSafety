@@ -35,7 +35,7 @@ import net.minecraftforge.fml.network.FMLNetworkConstants;
 public class MineSafety
 {
     private static final Logger LOGGER = LogManager.getLogger();
-    private static final ItemDepthGauge depthGauge = new ItemDepthGauge(new Item.Properties().group(ItemGroup.TOOLS));
+    private static final ItemDepthGauge depthGauge = new ItemDepthGauge(new Item.Properties().tab(ItemGroup.TAB_TOOLS));
 
     @SubscribeEvent
     public static void onRegisterItem(final RegistryEvent.Register<Item> event)
@@ -45,7 +45,7 @@ public class MineSafety
     }
 
     private final Random random = new Random();
-    private final DamageSource UNSAFE_MINE = new DamageSource("mineSafetyUnsafeY").setDifficultyScaled();
+    private final DamageSource UNSAFE_MINE = new DamageSource("mineSafetyUnsafeY").setScalesWithDifficulty();
     private final String NBTKey = "minesafetyCooldown";
     int tickCounterToStopLogSpam = 100;
 
@@ -68,25 +68,22 @@ public class MineSafety
     {
         Minecraft mc = Minecraft.getInstance();
         ArrayList<String> list = event.getLeft();
-        int yPos = mc.player.func_233580_cy_().getY();
-        // loop over the player slots
-        for(int i=0; i < 35; i++)
+        int yPos = mc.player.blockPosition().getY();
+
+        // if we find a depth gauge
+        if (mc.player.inventory.contains(new ItemStack(depthGauge)))
         {
-            // if we find a depth gauge
-            if (mc.player.inventory.getStackInSlot(i).isItemEqual(new ItemStack(depthGauge)))
+            // render the pos, Colored if below the danger level.
+            if (yPos <= MineSafetyConfig.GENERAL.yLevel.get())
             {
-                // render the pos, Colored if below the danger level.
-                if (yPos <= MineSafetyConfig.GENERAL.yLevel.get())
-                {
-                    list.add("\u00A74Y=" + yPos);
-                }
-                else
-                {
-                    list.add("Y=" + yPos);
-                }
+                list.add("\u00A74Y=" + yPos);
+            }
+            else
+            {
+                list.add("Y=" + yPos);
+            }
             }
         }
-    }
 
     @SubscribeEvent
     public void playerTick(TickEvent.PlayerTickEvent event)
@@ -99,10 +96,10 @@ public class MineSafety
         PlayerEntity player = event.player;
         CompoundNBT data = player.getPersistentData();
         int coolDown = data.getInt(NBTKey);
-        String dimResourceLocation = player.world.func_234923_W_().func_240901_a_().toString();
+        String dimResourceLocation = player.level.dimension().location().toString();
 
         // if the player has a helmet on we don't care. MUST BE REAL ARMOR!
-        if (player.getItemStackFromSlot(EquipmentSlotType.HEAD).getItem() instanceof ArmorItem) return;
+        if (player.getItemBySlot(EquipmentSlotType.HEAD).getItem() instanceof ArmorItem) return;
 
         // Does the play hold a timeout value?
         if (!data.contains(NBTKey))
@@ -119,8 +116,8 @@ public class MineSafety
         }
 
         // Is the player below the Y level, can't see they sky and the cooldown expired?
-        if (player.getPosY() <= MineSafetyConfig.GENERAL.yLevel.get() &&
-                !player.getEntityWorld().canBlockSeeSky(new BlockPos(player.getPosX(), player.getPosY(), player.getPosZ())) &&
+        if (player.getY() <= MineSafetyConfig.GENERAL.yLevel.get() &&
+                !player.level.canSeeSky(new BlockPos(player.getX(), player.getY(), player.getZ())) &&
                 coolDown == 0)
         {
             //check if the blacklist contains our current dim.
@@ -145,10 +142,10 @@ public class MineSafety
     private void damagePlayerAndNotify(CompoundNBT compoundNBT, PlayerEntity player)
     {
         // Damage is a magical beast that has some rules, We need to make sure we apply the damage!
-        if (player.attackEntityFrom(UNSAFE_MINE, 1.0f + 0.2f * random.nextFloat()))
+        if (player.hurt(UNSAFE_MINE, 1.0f + 0.2f * random.nextFloat()))
         {
             // if the damage is applied then we send the message along with a handy timeout reset.
-            player.sendStatusMessage(new TranslationTextComponent(MineSafetyConfig.GENERAL.message.get()) {}, true);
+            player.displayClientMessage(new TranslationTextComponent(MineSafetyConfig.GENERAL.message.get()) {}, true);
             compoundNBT.putInt(NBTKey, 20 * MineSafetyConfig.GENERAL.timeout.get());
         }
     }
