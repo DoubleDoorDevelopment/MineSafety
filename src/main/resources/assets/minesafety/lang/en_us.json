@@ -1,0 +1,9 @@
+{
+  "death.attack.helmet": "%1$s should wear a helmet next time",
+  "minesafety.config.yLevel": "The Y level at which you should wear a helmet.",
+  "minesafety.config.chance": "The chance you get damaged this tick, in percent.",
+  "minesafety.config.timeout": "The minimum time in seconds between 2 hits from this mod.",
+  "minesafety.config.message": "The message displayed in-game when user takes damage from no helmet.",
+  "minesafety.config.dimlist": "Dimension Blacklist",
+  "item.minesafety.depthgauge": "Depth Gauge"
+}
